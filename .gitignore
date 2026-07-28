@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# factcheck demo: runtime artifacts (screenshots, run logs)
+/.data/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
