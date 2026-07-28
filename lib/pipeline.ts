@@ -11,7 +11,7 @@ import { hybridSearch, type SearchHit } from "./search";
 import { extractBodyText, splitSentences } from "./extract";
 import { captureHighlight, captureFallback } from "./capture";
 import { ensureRunDir, newRunId } from "./store";
-import { assertPublicHttpUrl, UnsafeUrlError } from "./url-safety";
+import { assertPublicHttpUrl, guardPageRequests, UnsafeUrlError } from "./url-safety";
 import type {
   EvidenceItem,
   FactCheckReport,
@@ -115,6 +115,9 @@ export async function* runFactCheck(
 
           const page = await context.newPage();
           try {
+            // 初回URLだけでなく、リダイレクト先・サブリソースも含めて
+            // 全リクエストを検証する(SSRF対策の多層防御)。
+            await guardPageRequests(page);
             await page.goto(safeUrl.href, {
               waitUntil: "networkidle",
               timeout: 15_000,

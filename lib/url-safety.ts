@@ -11,6 +11,7 @@
 
 import dns from "node:dns/promises";
 import net, { BlockList } from "node:net";
+import type { Page } from "playwright";
 
 export class UnsafeUrlError extends Error {}
 
@@ -102,4 +103,37 @@ export async function assertPublicHttpUrl(rawUrl: string): Promise<URL> {
   }
 
   return url;
+}
+
+/**
+ * assertPublicHttpUrl は最初の URL しか検証しないため、そのままでは
+ * リダイレクト先や、ページが読み込むサブリソース(埋め込み画像・XHR等)が
+ * 内部アドレスを指していた場合に素通りしてしまう(SSRF)。
+ * ここではページ上の全リクエストを Playwright の route インターセプトで
+ * 検証し、内部アドレスへの接続そのものを発生させない。
+ *
+ * data:/blob: のようなネットワークを経由しないスキームは対象外とする。
+ */
+export async function guardPageRequests(page: Page): Promise<void> {
+  await page.route("**/*", async (route) => {
+    const reqUrl = route.request().url();
+    let parsed: URL;
+    try {
+      parsed = new URL(reqUrl);
+    } catch {
+      await route.abort("blockedbyclient");
+      return;
+    }
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      // data:, blob: 等はネットワークアクセスを伴わないため許可する
+      await route.continue();
+      return;
+    }
+    try {
+      await assertPublicHttpUrl(reqUrl);
+      await route.continue();
+    } catch {
+      await route.abort("blockedbyclient");
+    }
+  });
 }
