@@ -7,6 +7,39 @@ import { RunTimeline } from "./components/RunTimeline";
 import { EvidenceCard } from "./components/EvidenceCard";
 import { VerdictBadge } from "./components/VerdictBadge";
 
+const INTERPRETATION_STYLE: Record<
+  NonNullable<OverallVerdict["interpretation"]>["assessment"],
+  { label: string; className: string }
+> = {
+  COHERENT: {
+    label: "事実から妥当に導ける",
+    className: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
+  },
+  PARTIALLY_COHERENT: {
+    label: "一部飛躍がある",
+    className: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
+  },
+  UNSUPPORTED: {
+    label: "事実からは支持されない",
+    className: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
+  },
+};
+
+function InterpretationBadge({
+  assessment,
+}: {
+  assessment: NonNullable<OverallVerdict["interpretation"]>["assessment"];
+}) {
+  const s = INTERPRETATION_STYLE[assessment];
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold ${s.className}`}
+    >
+      {s.label}
+    </span>
+  );
+}
+
 interface UIState {
   status: "idle" | "running" | "done" | "error";
   claim: string;
@@ -133,20 +166,60 @@ export default function Home() {
         )}
 
         {state.overall && (
-          <section className="mt-6 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-                総合判定
-              </h2>
-              <VerdictBadge verdict={state.overall.verdict} />
-              <span className="text-xs text-zinc-400">
-                信頼度 {Math.round(state.overall.confidence * 100)}%
-              </span>
-            </div>
-            <p className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
-              {state.overall.summary}
-            </p>
-          </section>
+          <div className="mt-6 space-y-3">
+            <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                  事実関係の検証
+                </h2>
+                <VerdictBadge verdict={state.overall.verdict} />
+                <span className="text-xs text-zinc-400">
+                  信頼度 {Math.round(state.overall.confidence * 100)}%
+                </span>
+              </div>
+              <p className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
+                {state.overall.summary}
+              </p>
+              {state.overall.primarySources.length > 0 && (
+                <div className="mt-3 border-t border-zinc-100 pt-3 dark:border-zinc-800">
+                  <h3 className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                    参照した一次資料
+                  </h3>
+                  <ul className="mt-1.5 space-y-1">
+                    {state.overall.primarySources.map((s) => (
+                      <li key={s.url} className="text-xs">
+                        <a
+                          href={s.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-zinc-600 underline decoration-zinc-300 underline-offset-2 hover:decoration-zinc-500 dark:text-zinc-300 dark:decoration-zinc-600"
+                        >
+                          {s.title}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </section>
+
+            {state.overall.interpretation && (
+              <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                    解釈・提言の評価
+                  </h2>
+                  <InterpretationBadge assessment={state.overall.interpretation.assessment} />
+                </div>
+                <p className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
+                  {state.overall.interpretation.note}
+                </p>
+                <p className="mt-1 text-xs text-zinc-400">
+                  ※ データそのものの真偽ではなく、検証済みの事実からこの考察・提言がどの程度妥当に導けるかを評価しています
+                </p>
+              </section>
+            )}
+          </div>
         )}
 
         <div className="mt-8 space-y-8">
@@ -161,9 +234,19 @@ export default function Home() {
                   <h3 className="text-base font-semibold text-zinc-800 dark:text-zinc-100">
                     {sc.text}
                   </h3>
-                  {subVerdict && <VerdictBadge verdict={subVerdict.verdict} />}
+                  {sc.kind === "OPINION" ? (
+                    <span className="inline-flex items-center rounded-full bg-zinc-200 px-3 py-1 text-sm font-semibold text-zinc-700 dark:bg-zinc-700/60 dark:text-zinc-300">
+                      意見・考察(検証対象外)
+                    </span>
+                  ) : (
+                    subVerdict && <VerdictBadge verdict={subVerdict.verdict} />
+                  )}
                 </div>
-                {items.length === 0 ? (
+                {sc.kind === "OPINION" ? (
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                    データから導いた考察・提言と判断したため、事実検証の対象から外し「解釈・提言の評価」で扱っています
+                  </p>
+                ) : items.length === 0 ? (
                   <p className="text-sm text-zinc-500 dark:text-zinc-400">
                     {running ? "根拠を探索中です…" : "根拠となるソースが見つかりませんでした"}
                   </p>
