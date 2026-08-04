@@ -95,11 +95,70 @@ export async function chatJson<T>({
     },
     timeoutMs,
   );
+  return parseJsonLoose<T>(content, "chatJson");
+}
+
+/**
+ * JSON.parse をまず試し、失敗したら文字列内の最初の `{` から最後の `}` までを
+ * 貪欲に取り出して再度パースする。reasoning の前置きテキストが混ざった場合などの
+ * 保険で、構造化出力(json_schema)が効かなかった場合のフォールバック呼び出しでも使う。
+ */
+export function parseJsonLoose<T>(content: string, label = "parseJsonLoose"): T {
   try {
     return JSON.parse(content) as T;
   } catch {
-    throw new Error(`chatJson: モデル出力が JSON として解釈できません: ${content.slice(0, 300)}`);
+    // フォールスルーして緩い抽出を試みる
   }
+  const match = content.match(/\{[\s\S]*\}/);
+  if (match) {
+    try {
+      return JSON.parse(match[0]) as T;
+    } catch {
+      // フォールスルーして最終的に throw する
+    }
+  }
+  throw new Error(`${label}: モデル出力が JSON として解釈できません: ${content.slice(0, 300)}`);
+}
+
+interface ChatTextOptions {
+  port?: number;
+  model?: string;
+  system?: string;
+  user: string;
+  maxTokens?: number;
+  temperature?: number;
+  timeoutMs?: number;
+}
+
+/**
+ * response_format による構造化出力を使わない自由記述の問い合わせ。
+ * json_schema 制約が(スキーマの複雑さ等で)機能しなかった場合のフォールバック用。
+ */
+export async function chatText({
+  port = REASONER_PORT,
+  model = REASONER_MODEL,
+  system,
+  user,
+  maxTokens = 400,
+  temperature = 0.1,
+  timeoutMs = 120_000,
+}: ChatTextOptions): Promise<string> {
+  const messages = [
+    ...(system ? [{ role: "system", content: system }] : []),
+    { role: "user", content: user },
+  ];
+  const { content } = await postChat(
+    port,
+    {
+      model,
+      messages,
+      temperature,
+      max_tokens: maxTokens,
+      chat_template_kwargs: { enable_thinking: false },
+    },
+    timeoutMs,
+  );
+  return content;
 }
 
 interface ChatVisionOptions {

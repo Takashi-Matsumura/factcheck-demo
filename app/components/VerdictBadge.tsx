@@ -39,8 +39,14 @@ const STANCE_STYLE: Record<Stance, { label: string; className: string }> = {
   },
 };
 
+const FALLBACK_STYLE = {
+  label: "不明",
+  className: "bg-zinc-200 text-zinc-700 dark:bg-zinc-700/60 dark:text-zinc-300",
+};
+
 export function VerdictBadge({ verdict }: { verdict: Verdict }) {
-  const s = VERDICT_STYLE[verdict];
+  // LLM がスキーマ外の値を返した場合でもクラッシュしないようフォールバックする。
+  const s = VERDICT_STYLE[verdict] ?? FALLBACK_STYLE;
   return (
     <span
       className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold ${s.className}`}
@@ -51,7 +57,7 @@ export function VerdictBadge({ verdict }: { verdict: Verdict }) {
 }
 
 export function StanceBadge({ stance }: { stance: Stance }) {
-  const s = STANCE_STYLE[stance];
+  const s = STANCE_STYLE[stance] ?? FALLBACK_STYLE;
   return (
     <span
       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${s.className}`}
